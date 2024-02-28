@@ -1,16 +1,15 @@
 from tkinter import Frame, Label, Misc
-from typing import Any
 
-
+TILE_EMPTY = 0
+TILE_UNKNOWN = 1
+TILE_ABSENT = 2
+TILE_PRESENT = 3
+TILE_CORRECT = 4
+    
 class ScoreboardTile:
-    # TODO formalize color mapping
-    TILE_UNKNOWN = 0
-    TILE_ABSENT = 1
-    TILE_PRESENT = 2
-    TILE_CORRECT = 3
-
     _COLOR_MAP = {
-        TILE_UNKNOWN: "#d3d6da",
+        TILE_EMPTY: "#d3d6da",
+        TILE_UNKNOWN: "#878a8c",
         TILE_ABSENT: "#787c7e",
         TILE_PRESENT: "#c9b458",
         TILE_CORRECT: "#6aaa64",
@@ -29,16 +28,18 @@ class ScoreboardTile:
 
         self.update()  # Initalize text & color (state)
 
-    def update(self, text: str = "", state: int = TILE_UNKNOWN) -> None:
+    def update(self, text: str = "", state: int = TILE_EMPTY) -> None:
         if len(text) > 1 or (len(text) == 1 and not text.isalpha()):
             raise ValueError(f"Invalid tile text ({text})")
-        if len(text) == 0 and state != self.TILE_UNKNOWN:
+        if len(text) == 0 and state != TILE_EMPTY:
+            raise ValueError(f"Invalid tile state ({state})")
+        if len(text) == 1 and state == TILE_EMPTY:
             raise ValueError(f"Invalid tile state ({state})")
 
         label_config = {
             "text": text.upper(),
-            "bg": "white" if state == self.TILE_UNKNOWN else self._COLOR_MAP[state],
-            "fg": "black" if state == self.TILE_UNKNOWN else "white",
+            "bg": "white" if state <= TILE_UNKNOWN else self._COLOR_MAP[state],
+            "fg": "black" if state == TILE_UNKNOWN else "white",
         }
 
         self._frame.configure(bg=self._COLOR_MAP[state])
@@ -60,7 +61,7 @@ class ScoreboardRow:
 
 class Scoreboard:
     def __init__(self, master: Misc) -> None:
-        self._frame = Frame(master, height=340, width=280, bg="white")
+        self._frame = Frame(master, height=340, width=280)
         self._rows = [ScoreboardRow(self._frame) for _ in range(6)]
 
         self._frame.grid_propagate(False)
