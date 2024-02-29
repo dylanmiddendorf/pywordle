@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from frontend import *
 from tkinter import Canvas, Frame, Misc
 from PIL import Image  # Image import/load
@@ -98,6 +100,14 @@ class KeyboardRow:
         self._frame.columnconfigure(list(range(len(keys))), weight=1)
         self._frame.grid()
 
+    def update(self, letter: str, state: int):
+        for key in self._keys:
+            if key._letter == letter:
+                key.update(state)
+
+    def __contains__(self, value: str) -> bool:
+        return any(k._letter == value for k in self._keys)
+
     def __getitem__(self, key: int) -> Key:
         return self._keys[key]
 
@@ -110,6 +120,11 @@ class Keyboard:
         self._frame.grid_propagate(False)
         self._frame.rowconfigure(list(range(len(QUERTY_LAYOUT))), weight=1)
         self._frame.pack()
+
+    def update(self, letter: str, state: int) -> None:
+        letter = letter.upper() # Force uppercase
+        for row in self._rows:
+            row.update(letter, state)
 
     def __getitem__(self, key: int) -> KeyboardRow:
         return self._rows[key]
