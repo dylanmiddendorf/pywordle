@@ -2,28 +2,35 @@ from frontend import *
 from tkinter import Canvas, Frame, Misc
 from PIL import Image  # Image import/load
 from PIL.ImageTk import PhotoImage
-class Key:
-    # 4px
-    def __init__(self, master: Misc, letter: str) -> None:
-        self._canvas = Canvas(master, highlightthickness=0)
-        w, h, r = 42, 57, 4  # Slightly abstract magic numbers
-        letter = letter.upper()  # Force letter to uppercase
+from typing import Callable
 
-        # Build the button and render the specified letter
+
+class Key:
+    def __init__(self, master: Misc, letter: str, func: Callable[[str], None]) -> None:
+        if master is None or issubclass(Misc, type(master)):
+            raise TypeError(f"{type(master)} is not supported, try using a widget")
+        if letter is None or len(letter) != 1 or not letter.isalpha():
+            raise ValueError("The key must contain a singular alphabetic character")
+
+        self._canvas = Canvas(master, highlightthickness=0)
+        self._letter = letter.upper()  # Force letter to uppercase
+
+        w, h, r = 42, 57, 4  # Slightly abstract magic numbers
         self._shape(w, h, r)  # Build the button on the canvas
         self._canvas.create_text(0, 0, font=("Libre Franklin", 20, "bold"), text=letter)
-        self._canvas.move(6, w / 2, h / 2)  # Update letter offsets
+        self._canvas.move(6, w / 2, h / 2)  # Center the text on the canvas
         self.update()  # Update button color with correct state (empty)
         self._canvas.grid(column=len(master.children) - 1, row=0)
+        self._canvas.bind("<Button-1>", lambda e: func(self._letter))
 
     def _shape(self, width: int, height: int, border_radius: int) -> None:
         w, h, r = width, height, border_radius  # Increase readability
         self._canvas.configure(width=w + 1, height=h + 1)
 
         # Construct polygon w/ chamfered corners
-        north_east = (r, 0, w - r, 0, w, r, w, h - r)
-        south_west = (w - r, h, r, h, 0, h - r, 0, r)
-        self._canvas.create_polygon(north_east + south_west)
+        north_edge, east_edge = (r, 0, w - r, 0), (w, r, w, h - r)
+        south_edge, west_edge = (w - r, h, r, h), (0, h - r, 0, r)
+        self._canvas.create_polygon(north_edge + east_edge + south_edge + west_edge)
 
         # Construct remaining corners with arcs
         self._canvas.create_arc((w - (r * 2), 0, w, (r * 2)), start=0, extent=90)
@@ -43,47 +50,51 @@ class Key:
 
 
 class WideKey(Key):
-    def __init__(self, master: Misc, media: str | PhotoImage) -> None:
+    def __init__(self, master: Misc, letter: str, func: Callable) -> None:
         self._canvas = Canvas(master, highlightthickness=0)
-        w, h, r = 65, 57, 4  # Slightly abstract magic numbers
+        self._letter = letter  # Link letter for callbacks
+        self._func = func  # Link button to backend
 
         # Build the button and render the specified text/icon
+        w, h, r = 65, 57, 4  # Slightly abstract magic numbers
         self._shape(w, h, r)  # Build the button on the canvas
-
-        if type(media) is str:
-            font = ("Libre Franklin", 12, "bold")  # Similar to NYT Franklin
-            self._canvas.create_text(0, 0, font=font, text=media.upper())
-        elif type(media) is PhotoImage:
-            self._canvas.create_image(0, 0, image=media)
+        if letter == "\n":
+            font = ("Libre Franklin", 12, "bold")  # Obtained from NYT Wordle
+            self._canvas.create_text(0, 0, font=font, text="ENTER")
+        elif letter == "\b":
+            # !!! MUST ASSIGN IMAGE AS ATTRIBUTE !!!
+            path = "data/backspace.png"  # Filepath for backspace icon
+            self._backspace = PhotoImage(Image.open(path).resize((20, 20)))
+            self._canvas.create_image(0, 0, image=self._backspace)
+        else:
+            escaped_letter = self._letter.encode("unicode_escape").decode("utf-8")
+            raise ValueError(f"{escaped_letter} is not currently supported")
         self._canvas.move(6, w / 2, h / 2)  # Update text offsets
-
         bg_color = COLOR_MAP[TILE_EMPTY]
         for id in range(1, 6):  # One-based indexing
             self._canvas.itemconfig(id, fill=bg_color, outline=bg_color)
         self._canvas.grid(column=len(master.children) - 1, row=0)
+        self._canvas.bind("<Button-1>", lambda e: func(self._letter))
+
+    def update(self, state: int = TILE_EMPTY) -> None:
+        raise NotImplementedError("Operation not supported...")
 
 
 class KeyboardRow:
-    def __init__(self, master: Misc, keys: str) -> None:
+    def __init__(self, master: Misc, keys: str, func: Callable[[str], None]) -> None:
         self._frame = Frame(master, height=58, width=500)
-        frame_width = 0 # Used to evenly space keys
+        frame_width = 0  # Used to evenly space keys
         self._keys: list[Key] = []
         for key in keys:
-            if key == "\n":
-                self._keys.append(WideKey(self._frame, "ENTER"))
-                frame_width += 71 # 65 (width) + 6 (padding)
-            elif key == "\b":
-                # !!! MUST ASSIGN IMAGE AS ATTRIBUTE !!!
-                path = 'data/backspace.png' # Filepath for backspace icon
-                self._backspace = PhotoImage(Image.open(path).resize((20, 20)))
-                self._keys.append(WideKey(self._frame, self._backspace))
-                frame_width += 71 # 65 (width) + 6 (padding)
+            if key.isalpha():
+                self._keys.append(Key(self._frame, key, func))
+                frame_width += 49  # 43 (width) + 6 (padding)
             else:
-                self._keys.append(Key(self._frame, key))
-                frame_width += 49 # 43 (width) + 6 (padding)
+                self._keys.append(WideKey(self._frame, key, func))
+                frame_width += 71  # 65 (width) + 6 (padding)
 
         self._frame.grid_propagate(False)
-        self._frame.config(width=frame_width) # Used for key allignment
+        self._frame.config(width=frame_width)  # Used for key allignment
         self._frame.columnconfigure(list(range(len(keys))), weight=1)
         self._frame.grid()
 
@@ -92,9 +103,9 @@ class KeyboardRow:
 
 
 class Keyboard:
-    def __init__(self, master: Misc) -> None:
+    def __init__(self, master: Misc, func: Callable[[str], None]) -> None:
         self._frame = Frame(master, height=198, width=490)
-        self._rows = [KeyboardRow(self._frame, r) for r in QUERTY_LAYOUT]
+        self._rows = [KeyboardRow(self._frame, r, func) for r in QUERTY_LAYOUT]
 
         self._frame.grid_propagate(False)
         self._frame.rowconfigure(list(range(len(QUERTY_LAYOUT))), weight=1)
