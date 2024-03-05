@@ -1,4 +1,4 @@
-# wordle
+# PyWordle
 
 Welcome to PyWordle, a fun and challenging word game inspired by the web-based Wordle. PyWordle is written in Python, using tkinter for the graphical user interface. PyWordle is not affiliated with or endorsed by The New York Times Company, the owner of the original Wordle game, which can be played here: https://www.nytimes.com/puzzles/wordle.
 
