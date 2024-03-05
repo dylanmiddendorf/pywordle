@@ -1,12 +1,10 @@
 import itertools
 import json
 from datetime import date
-from typing import Callable, cast
+from typing import cast
 
-# Project libraries
-from frontend import Frontend, TILE_UNKNOWN, TILE_ABSENT, TILE_PRESENT, TILE_CORRECT
-
-# External libraries
+# Project/External libraries
+from frontend import Frontend, TILE_ABSENT, TILE_PRESENT, TILE_CORRECT
 import numpy as np
 import requests
 
@@ -14,58 +12,59 @@ import requests
 class Wordle:
     def __init__(self) -> None:
         self._solution = self._load_solution()
-        self._buffer, self._cursor = bytearray(b"?????"), 0
-        self._guesses = 0  # Current guess count
+        self._buffer = bytearray(b"?????")
+        self._index, self._guesses = 0, 0
         self._frontend = Frontend(self.query)
-
-    def set_update_handle(
-        self, func: Callable[[tuple[tuple[str, int]]], None] = None
-    ) -> None:
-        # Prevent null pointer exceptions by wrapping `func` in a lambda
-        self._update_handle = (lambda x: None) if func is None else func
+        self.has_won = False
 
     def query(self, request: str) -> None:
-
         if not isinstance(request, str) or len(request) != 1:
             raise ValueError("Requests must be a single character")
+        if self._guesses == 6 or self.has_won:
+            print("Please come back tommorow!")
+            return  # Don't allow player to continue playing
 
-        if request.isalpha() and self._cursor < len(self._buffer):
-            self._buffer[self._cursor] = ord(request)
-            self._cursor += 1  # Update cursor position
+        if request.isalpha() and self._index < len(self._buffer):
+            self._buffer[self._index] = ord(request)
             self._frontend.update(key=request)
-        elif request == "\b":
-            self._cursor -= 1  # Simulate backspace
+            self._index += 1
+        elif request == "\b" and 0 < self._index:
             self._frontend.update(key=request)
-        elif request == "\r":
+            self._index -= 1
+        elif request == "\r" and self._index == len(self._buffer):
+            # Check if user has beaten the game
+            if self._buffer.decode() == self._solution:
+                print("Congratulations, you won!")
+                self.has_won = True
+
             self._frontend.update(self._pattern())
-            self._cursor = 0  # Simulate `CR LF``
-            self._guesses += 1  # Register guess
+            self._index, self._guesses = 0, self._guesses + 1
 
     def mainloop(self) -> None:
         self._frontend.mainloop()
 
-    def _pattern(self) -> tuple[tuple[str, int]]:
+    def _pattern(self) -> tuple[tuple[str, int], ...]:
+        """Inspired by: https://github.com/3b1b/videos/blob/master/_2022/wordle/simulations.py"""
         # Shift all strings/results to numpy for faster analysis
-        guess = np.array(self._buffer, np.uint8)  # bytebuffer
+        n = len(self._buffer)  # Reduce magic numbers
+        guess = np.array(self._buffer, np.uint8)
         solution = np.array([ord(c) for c in self._solution], np.uint8)
-        pattern = np.array([TILE_ABSENT] * 5, np.uint8)
+        pattern = np.array([TILE_ABSENT] * n, np.uint8)
+        equality_grid = np.equal.outer(guess, solution)
 
         # Update all correct tiles in pattern
+        # Remove correct tiles from future analysis
         correct_tiles = guess == solution
         pattern[correct_tiles] = TILE_CORRECT
-
-        # Remove correct tiles from future analysis
-        equality_grid = np.equal.outer(guess, solution)
         equality_grid[:, correct_tiles] = False
         equality_grid[correct_tiles, :] = False
 
         # Update all exact matches within the guess
-        for i, j in itertools.product(range(5), range(5)):
+        for i, j in itertools.product(range(n), range(n)):
             if equality_grid[i][j]:
-                pattern[i] = TILE_PRESENT  # Found unaligned tile...
+                pattern[i] = TILE_PRESENT  # Found present tile...
                 equality_grid[i, :], equality_grid[:, j] = False, False
-
-        return tuple(zip(self._buffer.decode(), tuple(pattern.tolist())))
+        return tuple(zip(self._buffer.decode(), pattern.tolist()))
 
     @staticmethod
     def _load_solution() -> str:
