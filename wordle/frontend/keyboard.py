@@ -1,11 +1,25 @@
 from __future__ import annotations
 
-from frontend import *
 from tkinter import Canvas, Frame, Misc
 from PIL import Image  # Image import/load
 from PIL.ImageTk import PhotoImage
 from typing import Callable
 
+TILE_EMPTY = 0
+TILE_UNKNOWN = 1
+TILE_ABSENT = 2
+TILE_PRESENT = 3
+TILE_CORRECT = 4
+
+COLOR_MAP = {
+    TILE_EMPTY: "#d3d6da",
+    TILE_UNKNOWN: "#878a8c",
+    TILE_ABSENT: "#787c7e",
+    TILE_PRESENT: "#c9b458",
+    TILE_CORRECT: "#6aaa64",
+}
+
+QUERTY_LAYOUT = ["QWERTYUIOP", "ASDFGHJKL", "\rZXCVBNM\b"]
 
 class Key:
     def __init__(self, master: Misc, letter: str, func: Callable[[str], None]) -> None:
@@ -16,6 +30,7 @@ class Key:
 
         self._canvas = Canvas(master, highlightthickness=0)
         self._letter = letter.upper()  # Force letter to uppercase
+        self._state = -1 # For updates/upgrades
 
         w, h, r = 42, 57, 4  # Slightly abstract magic numbers
         self._shape(w, h, r)  # Build the button on the canvas
@@ -41,6 +56,9 @@ class Key:
         self._canvas.create_arc((w, h - (r * 2), w - (r * 2), h), start=270, extent=90)
 
     def update(self, state: int = TILE_EMPTY) -> None:
+        if self._state == state:
+            return
+        
         # Key's only contain 4 states (empty, absent, preset, ...)
         state = TILE_EMPTY if state == TILE_UNKNOWN else state
         bg_color = COLOR_MAP[state]  # Based on tile color map
@@ -49,6 +67,10 @@ class Key:
         for id in range(1, 6):  # One-based indexing
             self._canvas.itemconfig(id, fill=bg_color, outline=bg_color)
         self._canvas.itemconfig(6, fill=fg_color)  # Update text
+    
+    def upgrade(self, state: int = TILE_EMPTY) -> None:
+        if self._state < state:
+            self.update(state)
 
 
 class WideKey(Key):
@@ -60,7 +82,7 @@ class WideKey(Key):
         # Build the button and render the specified text/icon
         w, h, r = 65, 57, 4  # Slightly abstract magic numbers
         self._shape(w, h, r)  # Build the button on the canvas
-        if letter == "\n":
+        if letter == "\r":
             font = ("Libre Franklin", 12, "bold")  # Obtained from NYT Wordle
             self._canvas.create_text(0, 0, font=font, text="ENTER")
         elif letter == "\b":
@@ -105,6 +127,11 @@ class KeyboardRow:
             if key._letter == letter:
                 key.update(state)
 
+    def upgrade(self, letter: str, state: int):
+        for key in self._keys:
+            if key._letter == letter:
+                key.upgrade(state)
+
     def __contains__(self, value: str) -> bool:
         return any(k._letter == value for k in self._keys)
 
@@ -113,18 +140,23 @@ class KeyboardRow:
 
 
 class Keyboard:
-    def __init__(self, master: Misc, func: Callable[[str], None]) -> None:
+    def __init__(self, master: Misc, handle: Callable[[str], None]) -> None:
         self._frame = Frame(master, height=198, width=490)
-        self._rows = [KeyboardRow(self._frame, r, func) for r in QUERTY_LAYOUT]
+        self._rows = [KeyboardRow(self._frame, r, handle) for r in QUERTY_LAYOUT]
 
         self._frame.grid_propagate(False)
         self._frame.rowconfigure(list(range(len(QUERTY_LAYOUT))), weight=1)
         self._frame.pack()
 
     def update(self, letter: str, state: int) -> None:
-        letter = letter.upper() # Force uppercase
+        letter = letter.upper()  # Force uppercase
         for row in self._rows:
             row.update(letter, state)
+
+    def upgrade(self, letter: str, state: int) -> None:
+        letter = letter.upper()  # Force uppercase
+        for row in self._rows:
+            row.upgrade(letter, state)
 
     def __getitem__(self, key: int) -> KeyboardRow:
         return self._rows[key]

@@ -1,5 +1,6 @@
 import json, requests
 from datetime import date
+from backend import Backend
 
 
 class Wordle:
@@ -33,18 +34,9 @@ class Wordle:
 
 
 def main():
-    game = Wordle()  # Generate a new Wordle instance
-    while game.has_guess() and not game.is_solved:
-        result = [
-            "🟩" if x == 2 else ("🟨" if x == 1 else "⬛")
-            for x in game.guess(input("> "))
-        ]
-        print("".join(result))
-    if game.is_solved:
-        print("Congrats!")
-    else:
-        print("Until next time!")
-
+    backend = Backend()
+    backend.mainloop()
 
 if __name__ == "__main__":
     main()
+    

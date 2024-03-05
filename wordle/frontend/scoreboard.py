@@ -1,5 +1,20 @@
-from frontend import *  # General constants
 from tkinter import Frame, Label, Misc
+
+from typing import Generator
+
+TILE_EMPTY = 0
+TILE_UNKNOWN = 1
+TILE_ABSENT = 2
+TILE_PRESENT = 3
+TILE_CORRECT = 4
+
+COLOR_MAP = {
+    TILE_EMPTY: "#d3d6da",
+    TILE_UNKNOWN: "#878a8c",
+    TILE_ABSENT: "#787c7e",
+    TILE_PRESENT: "#c9b458",
+    TILE_CORRECT: "#6aaa64",
+}
 
 
 class ScoreboardTile:
@@ -15,7 +30,7 @@ class ScoreboardTile:
         self._label.pack(fill="both")  # Fill tile area (48.5 x 48)
         self._frame.grid(column=len(master.children) - 1, row=0)
 
-        self.update()  # Initalize text & color (state)
+        self.update()  # Initalize text & color (state)        
 
     def update(self, text: str = "", state: int = TILE_EMPTY) -> None:
         if len(text) > 1 or (len(text) == 1 and not text.isalpha()):
@@ -28,7 +43,7 @@ class ScoreboardTile:
         label_config = {
             "text": text.upper(),
             "bg": "white" if state <= TILE_UNKNOWN else COLOR_MAP[state],
-            "fg": "black" if state == TILE_EMPTY else "white",
+            "fg": "black" if state <= TILE_UNKNOWN else "white",
         }
 
         self._frame.configure(bg=COLOR_MAP[state])
@@ -52,10 +67,27 @@ class Scoreboard:
     def __init__(self, master: Misc) -> None:
         self._frame = Frame(master, height=340, width=280)
         self._rows = [ScoreboardRow(self._frame) for _ in range(6)]
+        self._cursor = [0, 0]  # (x, y)
 
         self._frame.grid_propagate(False)
         self._frame.rowconfigure(list(range(6)), weight=1)
         self._frame.pack()
+
+    def update_row(self, pattern: tuple[tuple[str, int]]):
+        for idx, (letter, state) in enumerate(pattern):
+            self._rows[self._cursor[1]][idx].update(letter, state)
+
+        self._cursor[0] = 0
+        self._cursor[1] += 1
+    
+    def query(self, query: str):
+        if query.isalpha():
+            self._rows[self._cursor[1]][self._cursor[0]].update(query, TILE_UNKNOWN)
+            self._cursor[0] += 1
+        elif query == '\b' and 0 < self._cursor[0]:
+            self._cursor[0] -= 1
+            self._rows[self._cursor[1]][self._cursor[0]].update()
+            
 
     def __getitem__(self, key: int) -> ScoreboardRow:
         return self._rows[key]
