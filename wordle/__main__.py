@@ -5,6 +5,7 @@ from typing import cast
 
 # Project/External libraries
 from frontend import Frontend, TILE_ABSENT, TILE_PRESENT, TILE_CORRECT
+import json
 import numpy as np
 import requests
 
@@ -15,6 +16,7 @@ class Wordle:
         self._buffer = bytearray(b"?????")
         self._index, self._guesses = 0, 0
         self._frontend = Frontend(self.query)
+        self._dictionary = self._load_dictionary()
         self.has_won = False
 
     def query(self, request: str) -> None:
@@ -37,8 +39,11 @@ class Wordle:
                 print("Congratulations, you won!")
                 self.has_won = True
 
-            self._frontend.update(self._pattern())
-            self._index, self._guesses = 0, self._guesses + 1
+            if self._buffer.decode().lower() not in self._dictionary:
+                print("Not in word list.")
+            else:
+                self._frontend.update(self._pattern())
+                self._index, self._guesses = 0, self._guesses + 1
 
     def mainloop(self) -> None:
         self._frontend.mainloop()
@@ -66,6 +71,11 @@ class Wordle:
                 equality_grid[i, :], equality_grid[:, j] = False, False
         return tuple(zip(self._buffer.decode(), pattern.tolist()))
 
+    @staticmethod
+    def _load_dictionary() -> list[str]:
+        with open('data/dictionary.json', 'rt') as fp:
+            return json.load(fp)
+    
     @staticmethod
     def _load_solution() -> str:
         endpoint = f"https://www.nytimes.com/svc/wordle/v2/{date.today().strftime('%Y-%m-%d')}.json"
