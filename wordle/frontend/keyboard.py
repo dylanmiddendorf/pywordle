@@ -1,25 +1,13 @@
 from __future__ import annotations
 
 from tkinter import Canvas, Frame, Misc
-from PIL import Image  # Image import/load
-from PIL.ImageTk import PhotoImage
 from typing import Callable
 
-TILE_EMPTY = 0
-TILE_UNKNOWN = 1
-TILE_ABSENT = 2
-TILE_PRESENT = 3
-TILE_CORRECT = 4
+from PIL import Image  # Image import/load
+from PIL.ImageTk import PhotoImage
 
-COLOR_MAP = {
-    TILE_EMPTY: "#d3d6da",
-    TILE_UNKNOWN: "#878a8c",
-    TILE_ABSENT: "#787c7e",
-    TILE_PRESENT: "#c9b458",
-    TILE_CORRECT: "#6aaa64",
-}
+from constants import COLOR_MAP, TILE_EMPTY, TILE_UNKNOWN, QUERTY_LAYOUT
 
-QUERTY_LAYOUT = ["QWERTYUIOP", "ASDFGHJKL", "\rZXCVBNM\b"]
 
 class Key:
     def __init__(self, master: Misc, letter: str, func: Callable[[str], None]) -> None:
@@ -30,7 +18,7 @@ class Key:
 
         self._canvas = Canvas(master, highlightthickness=0)
         self._letter = letter.upper()  # Force letter to uppercase
-        self._state = -1 # For updates/upgrades
+        self._state = -1  # For updates/upgrades
 
         w, h, r = 42, 57, 4  # Slightly abstract magic numbers
         self._shape(w, h, r)  # Build the button on the canvas
@@ -58,16 +46,16 @@ class Key:
     def update(self, state: int = TILE_EMPTY) -> None:
         if self._state == state:
             return
-        
+
         # Key's only contain 4 states (empty, absent, preset, ...)
         state = TILE_EMPTY if state == TILE_UNKNOWN else state
         bg_color = COLOR_MAP[state]  # Based on tile color map
         fg_color = "black" if state == TILE_EMPTY else "white"
 
-        for id in range(1, 6):  # One-based indexing
-            self._canvas.itemconfig(id, fill=bg_color, outline=bg_color)
+        for item in range(1, 6):  # One-based indexing
+            self._canvas.itemconfig(item, fill=bg_color, outline=bg_color)
         self._canvas.itemconfig(6, fill=fg_color)  # Update text
-    
+
     def upgrade(self, state: int = TILE_EMPTY) -> None:
         if self._state < state:
             self.update(state)
@@ -95,8 +83,8 @@ class WideKey(Key):
             raise ValueError(f"{escaped_letter} is not currently supported")
         self._canvas.move(6, w / 2, h / 2)  # Update text offsets
         bg_color = COLOR_MAP[TILE_EMPTY]
-        for id in range(1, 6):  # One-based indexing
-            self._canvas.itemconfig(id, fill=bg_color, outline=bg_color)
+        for item in range(1, 6):  # One-based indexing
+            self._canvas.itemconfig(item, fill=bg_color, outline=bg_color)
         self._canvas.grid(column=len(master.children) - 1, row=0)
         self._canvas.bind("<Button-1>", lambda e: func(self._letter))
 

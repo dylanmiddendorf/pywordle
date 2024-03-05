@@ -5,7 +5,6 @@ from typing import cast
 
 # Project/External libraries
 from frontend import Frontend, TILE_ABSENT, TILE_PRESENT, TILE_CORRECT
-import json
 import numpy as np
 import requests
 
@@ -73,9 +72,9 @@ class Wordle:
 
     @staticmethod
     def _load_dictionary() -> list[str]:
-        with open('data/dictionary.json', 'rt') as fp:
+        with open("data/dictionary.json", "rt", encoding="utf-8") as fp:
             return json.load(fp)
-    
+
     @staticmethod
     def _load_solution() -> str:
         endpoint = f"https://www.nytimes.com/svc/wordle/v2/{date.today().strftime('%Y-%m-%d')}.json"
