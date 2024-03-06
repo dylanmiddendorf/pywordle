@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from tkinter import Canvas, Frame, Misc
-from typing import Callable
+from typing import Callable, Sequence
 
 from PIL import Image  # Image import/load
 from PIL.ImageTk import PhotoImage
@@ -101,19 +101,6 @@ class KeyboardRow:
         self._frame.columnconfigure(list(range(len(keys))), weight=1)
         self._frame.grid()
 
-    def update(self, letter: str, state: int):
-        for key in self._keys:
-            if key._letter == letter:
-                key.update(state)
-
-    def upgrade(self, letter: str, state: int):
-        for key in self._keys:
-            if key.letter == letter:
-                key.upgrade(state)
-
-    def __contains__(self, value: str) -> bool:
-        return any(k._letter == value for k in self._keys)
-
     def __getitem__(self, key: int) -> Key:
         return self._keys[key]
 
@@ -122,20 +109,23 @@ class Keyboard:
     def __init__(self, master: Misc, handle: Callable[[str], None]) -> None:
         self._frame = Frame(master, height=198, width=490)
         self._rows = [KeyboardRow(self._frame, r, handle) for r in QUERTY_LAYOUT]
+        self._mapping = self._load_mapping(QUERTY_LAYOUT)
 
         self._frame.grid_propagate(False)
-        self._frame.rowconfigure(list(range(len(QUERTY_LAYOUT))), weight=1)
-        self._frame.pack()
+        self._frame.rowconfigure(tuple(range(len(QUERTY_LAYOUT))), weight=1)
+        self._frame.pack()  # Render frame within the master widget
 
     def update(self, letter: str, state: int) -> None:
-        letter = letter.upper()  # Force uppercase
-        for row in self._rows:
-            row.update(letter, state)
-
-    def upgrade(self, letter: str, state: int) -> None:
-        letter = letter.upper()  # Force uppercase
-        for row in self._rows:
-            row.upgrade(letter, state)
+        x, y = self._mapping[letter.upper()]
+        self._rows[y][x].update(state)
 
     def __getitem__(self, key: int) -> KeyboardRow:
         return self._rows[key]
+
+    @staticmethod
+    def _load_mapping(layout: Sequence[str]) -> dict[str, tuple[int, int]]:
+        """Returns a dictionary containing key-coordiante mappings."""
+        mapping: dict[str, tuple[int, int]] = {}
+        for y, row in enumerate(layout):
+            mapping.update({k: (x, y) for x, k in enumerate(row)})
+        return mapping
