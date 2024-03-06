@@ -13,20 +13,38 @@ class Key:
     def __init__(self, master: Misc, letter: str, func: Callable[[str], None]) -> None:
         if master is None or issubclass(Misc, type(master)):
             raise TypeError(f"{type(master)} is not supported, try using a widget")
-        if letter is None or len(letter) != 1 or not letter.isalpha():
+        if letter is None or len(letter) != 1:
             raise ValueError("The key must contain a singular alphabetic character")
 
         self._canvas = Canvas(master, highlightthickness=0)
         self._letter = letter.upper()  # Force letter to uppercase
         self._state = -1  # For updates/upgrades
+        self._width = 42 if letter.isalpha() else 65
 
-        w, h, r = 42, 57, 4  # Slightly abstract magic numbers
-        self._shape(w, h, r)  # Build the button on the canvas
-        self._canvas.create_text(0, 0, font=("Libre Franklin", 20, "bold"), text=letter)
-        self._canvas.move(6, w / 2, h / 2)  # Center the text on the canvas
+        height, radius = 57, 4  # height and radius respectively
+        self._shape(self._width, height, radius)  # Build the button on the canvas
+
+        if letter.isalpha():
+            font = ("Libre Franklin", 20, "bold")
+            self._canvas.create_text(0, 0, font=font, text=letter)
+        elif letter == "\r":
+            font = ("Libre Franklin", 12, "bold")
+            self._canvas.create_text(0, 0, font=font, text="ENTER")
+        elif letter == "\b":
+            # !!! MUST ASSIGN IMAGE AS ATTRIBUTE !!!
+            path = "data/backspace.png"  # Filepath for backspace icon
+            self._backspace = PhotoImage(Image.open(path).resize((20, 20)))
+            self._canvas.create_image(0, 0, image=self._backspace)
+        else:
+            escaped_letter = self._letter.encode("unicode_escape").decode("utf-8")
+            raise ValueError(f"{escaped_letter} is not currently supported")
+
+        self._canvas.move(
+            6, self._width / 2, height / 2
+        )  # Center the media on the canvas
         self.update()  # Update button color with correct state (empty)
         self._canvas.grid(column=len(master.children) - 1, row=0)
-        self._canvas.bind("<Button-1>", lambda e: func(self._letter))
+        self._canvas.bind("<Button-1>", lambda _: func(self._letter))
 
     def _shape(self, width: int, height: int, border_radius: int) -> None:
         w, h, r = width, height, border_radius  # Increase readability
@@ -45,7 +63,7 @@ class Key:
 
     def update(self, state: int = TILE_EMPTY) -> None:
         if self._state == state:
-            return
+            return  # Cache previous tile state for performance
 
         # Key's only contain 4 states (empty, absent, preset, ...)
         state = TILE_EMPTY if state == TILE_UNKNOWN else state
@@ -54,42 +72,20 @@ class Key:
 
         for item in range(1, 6):  # One-based indexing
             self._canvas.itemconfig(item, fill=bg_color, outline=bg_color)
-        self._canvas.itemconfig(6, fill=fg_color)  # Update text
+        if self._letter.isalpha() or self._letter == "\n":
+            self._canvas.itemconfig(6, fill=fg_color)  # Update text
+
+    @property
+    def letter(self) -> str:
+        return self._letter
+
+    @property
+    def width(self) -> int:
+        return self._width
 
     def upgrade(self, state: int = TILE_EMPTY) -> None:
         if self._state < state:
             self.update(state)
-
-
-class WideKey(Key):
-    def __init__(self, master: Misc, letter: str, func: Callable) -> None:
-        self._canvas = Canvas(master, highlightthickness=0)
-        self._letter = letter  # Link letter for callbacks
-        self._func = func  # Link button to backend
-
-        # Build the button and render the specified text/icon
-        w, h, r = 65, 57, 4  # Slightly abstract magic numbers
-        self._shape(w, h, r)  # Build the button on the canvas
-        if letter == "\r":
-            font = ("Libre Franklin", 12, "bold")  # Obtained from NYT Wordle
-            self._canvas.create_text(0, 0, font=font, text="ENTER")
-        elif letter == "\b":
-            # !!! MUST ASSIGN IMAGE AS ATTRIBUTE !!!
-            path = "data/backspace.png"  # Filepath for backspace icon
-            self._backspace = PhotoImage(Image.open(path).resize((20, 20)))
-            self._canvas.create_image(0, 0, image=self._backspace)
-        else:
-            escaped_letter = self._letter.encode("unicode_escape").decode("utf-8")
-            raise ValueError(f"{escaped_letter} is not currently supported")
-        self._canvas.move(6, w / 2, h / 2)  # Update text offsets
-        bg_color = COLOR_MAP[TILE_EMPTY]
-        for item in range(1, 6):  # One-based indexing
-            self._canvas.itemconfig(item, fill=bg_color, outline=bg_color)
-        self._canvas.grid(column=len(master.children) - 1, row=0)
-        self._canvas.bind("<Button-1>", lambda e: func(self._letter))
-
-    def update(self, state: int = TILE_EMPTY) -> None:
-        raise NotImplementedError("Operation not supported...")
 
 
 class KeyboardRow:
@@ -97,14 +93,9 @@ class KeyboardRow:
         self._frame = Frame(master, height=58, width=500)
         frame_width = 0  # Used to evenly space keys
         self._keys: list[Key] = []
-        for key in keys:
-            if key.isalpha():
-                self._keys.append(Key(self._frame, key, func))
-                frame_width += 49  # 43 (width) + 6 (padding)
-            else:
-                self._keys.append(WideKey(self._frame, key, func))
-                frame_width += 71  # 65 (width) + 6 (padding)
-
+        for idx, key in enumerate(keys):
+            self._keys.append(Key(self._frame, key, func))
+            frame_width += self._keys[idx].width + 6  # padding
         self._frame.grid_propagate(False)
         self._frame.config(width=frame_width)  # Used for key allignment
         self._frame.columnconfigure(list(range(len(keys))), weight=1)
@@ -117,7 +108,7 @@ class KeyboardRow:
 
     def upgrade(self, letter: str, state: int):
         for key in self._keys:
-            if key._letter == letter:
+            if key.letter == letter:
                 key.upgrade(state)
 
     def __contains__(self, value: str) -> bool:
